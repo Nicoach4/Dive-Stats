@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dive Stats Elite</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; color: #1e293b; -webkit-tap-highlight-color: transparent; touch-action: pan-y; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: slideUp 0.3s ease; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .header-pro { background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%); }
+        .card-pro { background: white; border-radius: 24px; shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.02); }
+        .nav-dock { background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.1); }
+        .btn-action { background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); transition: all 0.2s ease; }
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 2000; backdrop-filter: blur(5px); }
+        .modal.active { display: flex; align-items: center; justify-content: center; }
+        #customKeyboard { position: fixed; bottom: 0; left: 0; right: 0; background: #cbd5e1; padding: 10px; z-index: 1500; display: none; border-radius: 24px 24px 0 0; box-shadow: 0 -10px 40px rgba(0,0,0,0.2); }
+        .key { background: white; border-radius: 12px; height: 52px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.2rem; box-shadow: 0 3px 0 #94a3b8; transition: all 0.1s; touch-action: manipulation; }
+        .key:active { transform: translateY(2px); box-shadow: 0 1px 0 #94a3b8; background: #f1f5f9; }
+        .key-nav { background: #334155; color: white; box-shadow: 0 3px 0 #1e293b; font-size: 1.5rem; height: 95px !important; }
+        .key-ok { background: #2563eb; color: white; box-shadow: 0 3px 0 #1d4ed8; font-size: 1rem; height: 52px !important; }
+        .input-active { background: #dbeafe !important; border: 2px solid #2563eb !important; transform: scale(1.05); z-index: 10; }
+    </style>
+</head>
+<body class="pb-32">
+
+    <div id="customKeyboard">
+        <div class="grid grid-cols-12 gap-2">
+            <div class="col-span-2 flex flex-col gap-2"><button onpointerdown="app.kbNav('up')" class="key key-nav">↑</button><button onpointerdown="app.kbNav('down')" class="key key-nav">↓</button></div>
+            <div class="col-span-8">
+                <div id="numKeys" class="grid grid-cols-3 gap-2">
+                    <button onpointerdown="app.kbWrite('1')" class="key">1</button><button onpointerdown="app.kbWrite('2')" class="key">2</button><button onpointerdown="app.kbWrite('3')" class="key">3</button>
+                    <button onpointerdown="app.kbWrite('4')" class="key">4</button><button onpointerdown="app.kbWrite('5')" class="key">5</button><button onpointerdown="app.kbWrite('6')" class="key">6</button>
+                    <button onpointerdown="app.kbWrite('7')" class="key">7</button><button onpointerdown="app.kbWrite('8')" class="key">8</button><button onpointerdown="app.kbWrite('9')" class="key">9</button>
+                    <button onpointerdown="app.kbWrite('.')" class="key">.</button><button onpointerdown="app.kbWrite('0')" class="key">0</button><button onpointerdown="app.kbDel()" class="key text-slate-400">⌫</button>
+                </div>
+                <div id="alphaKeys" class="grid grid-cols-2 gap-2" style="display:none;">
+                    <button onpointerdown="app.kbWrite('A')" class="key h-[62px]">A</button><button onpointerdown="app.kbWrite('B')" class="key h-[62px]">B</button>
+                    <button onpointerdown="app.kbWrite('C')" class="key h-[62px]">C</button><button onpointerdown="app.kbWrite('D')" class="key h-[62px]">D</button>
+                    <button onpointerdown="app.kbWrite('E')" class="key h-[62px]">E</button><button onpointerdown="app.kbDel()" class="key h-[62px] text-slate-400">⌫</button>
+                </div>
+            </div>
+            <div class="col-span-2 flex flex-col gap-2"><button onpointerdown="app.kbNav('left')" class="key key-nav">←</button><button onpointerdown="app.kbNav('right')" class="key key-nav">→</button><button onpointerdown="app.closeKeyboard()" class="key key-ok">OK</button></div>
+        </div>
+    </div>
+
+    <div id="sessionModal" class="modal px-4" onmousedown="if(event.target == this) app.closeModal()">
+        <div class="card-pro w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col text-slate-900">
+            <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <div><h3 id="modalTitle" class="font-black text-lg uppercase tracking-tight text-slate-900">Details</h3><p id="modalSub" class="text-[10px] font-bold text-slate-400 uppercase tracking-widest"></p></div>
+                <button onclick="app.closeModal()" class="text-slate-400 font-black text-xl">×</button>
+            </div>
+            <div id="modalContent" class="p-4 overflow-y-auto flex-1 bg-white text-slate-900"></div>
+            <div class="p-6 border-t border-slate-100 flex gap-3 bg-slate-50">
+                <button id="modalDeleteBtn" class="flex-1 bg-rose-50 text-rose-500 py-4 rounded-2xl font-black text-xs uppercase tracking-widest text-center">Delete</button>
+                <button onclick="app.closeModal()" class="flex-1 bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest text-center">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <header class="header-pro text-white p-6 sticky top-0 z-50 shadow-2xl rounded-b-[40px]">
+        <div class="flex justify-between items-center mb-6">
+            <div class="flex items-center gap-3">
+                <div class="bg-white/10 p-2 rounded-xl border border-white/20 text-xl text-white">🔱</div>
+                <h1 class="text-xl font-[900] tracking-tight uppercase italic text-white">Dive Stats</h1>
+            </div>
+            <div class="flex items-center bg-black/20 rounded-full px-2 py-1 border border-white/10 shadow-inner text-white">
+                <select id="globalDay" class="bg-transparent text-[10px] font-black outline-none px-1 text-white"></select>
+                <select id="globalMonth" class="bg-transparent text-[10px] font-black outline-none px-1 border-x border-white/10 text-white"></select>
+                <select id="globalYear" class="bg-transparent text-[10px] font-black outline-none px-1 text-white" onchange="app.updateGlobalContext()"></select>
+            </div>
+        </div>
+        <div class="flex gap-3">
+            <select id="globalAthlete" class="flex-1 bg-white text-slate-900 p-3.5 rounded-2xl font-bold shadow-lg text-sm outline-none" onchange="app.updateGlobalContext()"></select>
+            <select id="globalCategory" class="bg-blue-500/20 text-white text-[10px] font-extrabold rounded-2xl px-4 uppercase border border-white/20 outline-none" onchange="app.updateGlobalContext()">
+                <option value="Elites">Elites</option><option value="Cat A">Cat A</option><option value="Cat B">Cat B</option><option value="Cat C">Cat C</option><option value="Cat D">Cat D</option>
+            </select>
+        </div>
+    </header>
+
+    <main class="p-5 space-y-8">
+        <section id="draft" class="tab-content active space-y-6 text-slate-900">
+            <div class="grid grid-cols-2 gap-3">
+                <select id="draftDevice" class="p-4 card-pro font-bold text-xs outline-none" onchange="app.updateDevice()">
+                    <option value="Springboard">Springboard</option><option value="Platform">Platform</option>
+                </select>
+                <select id="draftHeight" class="p-4 card-pro font-bold text-xs outline-none" onchange="app.generateDraftRows()"><option value="1m">1m</option><option value="3m">3m</option></select>
+            </div>
+            <div class="grid grid-cols-3 gap-2 text-slate-900">
+                <select id="draftType" class="p-4 card-pro font-bold text-[10px] outline-none" onchange="app.toggleFormat()">
+                    <option value="Training">Training</option><option value="Competition">Competition</option>
+                </select>
+                <select id="draftFormat" class="p-4 card-pro font-bold text-[10px] outline-none"><option value="List">List</option><option value="Practice">Practice</option></select>
+                <div class="flex items-center justify-center card-pro p-2 gap-2 shadow-sm"><span class="text-[8px] font-black text-slate-400 uppercase">Req.</span><input type="checkbox" id="reqToggle" checked onchange="app.calcTotals()" class="w-4 h-4 rounded border-slate-300"></div>
+            </div>
+            <div class="card-pro overflow-hidden border border-slate-100">
+                <table class="w-full text-[11px] text-left">
+                    <thead class="bg-slate-50 border-b border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-widest"><tr><th class="p-3">Dive</th><th class="p-3 text-center">Pos</th><th class="p-3 text-center">DD</th><th class="p-3 text-center">Note</th><th class="p-3 text-right">Pts</th></tr></thead>
+                    <tbody id="draftRows" class="divide-y divide-slate-50"></tbody>
+                </table>
+            </div>
+            <div class="card-pro p-7 flex justify-between items-center bg-gradient-to-br from-white to-slate-50 border-b-4 border-blue-600 shadow-sm">
+                <div><p class="text-[10px] text-slate-400 font-black uppercase tracking-widest">List Total</p><p id="totalScore" class="text-5xl font-[900] text-slate-900 leading-none mt-1 tracking-tighter">0.0</p></div>
+                <div class="text-right"><p class="text-[10px] text-slate-400 font-black uppercase" id="reqLabel">Req (5)</p><p id="totalReq" class="text-3xl font-[800] text-blue-500 leading-none mt-1">0.0</p></div>
+            </div>
+            <button onclick="app.saveSession()" class="w-full btn-action text-white font-[800] py-5 rounded-[24px] shadow-xl uppercase text-sm tracking-widest">Save & Clear Draft</button>
+        </section>
+
+        <section id="stats" class="tab-content space-y-6">
+            <div class="flex justify-between items-center text-slate-900"><h2 class="text-xl font-black text-slate-900 uppercase tracking-tight">Global Progress</h2><select id="statsHeightFilter" class="bg-blue-50 text-blue-600 text-[10px] font-black p-2 rounded-xl outline-none" onchange="app.updateGlobalContext()"><option value="1m">1m</option><option value="3m">3m</option><option value="Platform">Platform</option></select></div>
+            <div class="grid grid-cols-2 gap-3 text-slate-900">
+                <div class="card-pro border-l-8 border-blue-500 shadow-sm overflow-hidden text-slate-900">
+                    <div id="bestTrainBtn" class="p-4 cursor-pointer active:bg-slate-50 border-b border-slate-50"><p class="text-[8px] font-black text-slate-400 uppercase mb-1">Best Train</p><p class="text-lg font-black text-slate-900"><span id="bestTrain">0.0</span> <span class="text-[10px] text-blue-500">/ <span id="bestTrainReq">0.0</span></span></p></div>
+                    <div id="worstTrainBtn" class="p-4 cursor-pointer active:bg-slate-50 bg-slate-50/50"><p class="text-[8px] font-black text-slate-400 uppercase mb-1">Worst Train</p><p class="text-lg font-black text-slate-900"><span id="worstTrain">0.0</span> <span class="text-[10px] text-blue-500">/ <span id="worstTrainReq">0.0</span></span></p></div>
+                </div>
+                <div class="card-pro border-l-8 border-rose-500 shadow-sm overflow-hidden text-slate-900">
+                    <div id="bestCompBtn" class="p-4 cursor-pointer active:bg-slate-50 border-b border-slate-50"><p class="text-[8px] font-black text-slate-400 uppercase mb-1">Best Comp</p><p class="text-lg font-black text-slate-900"><span id="bestComp">0.0</span> <span class="text-[10px] text-rose-500">/ <span id="bestCompReq">0.0</span></span></p></div>
+                    <div id="worstCompBtn" class="p-4 cursor-pointer active:bg-slate-50 bg-slate-50/50"><p class="text-[8px] font-black text-slate-400 uppercase mb-1">Worst Comp</p><p class="text-lg font-black text-slate-900"><span id="worstComp">0.0</span> <span class="text-[10px] text-rose-500">/ <span id="worstCompReq">0.0</span></span></p></div>
+                </div>
+            </div>
+            <div class="card-pro p-1 h-[300px] border border-slate-100 shadow-sm relative overflow-hidden bg-white text-slate-900"><canvas id="evolutionChart" onclick="app.handleChartClick(event)"></canvas></div>
+            <div class="grid grid-cols-2 gap-3 text-slate-900"><div id="historyTrain" class="space-y-2"></div><div id="historyComp" class="space-y-2"></div></div>
+        </section>
+
+        <section id="diveStats" class="tab-content space-y-6 text-slate-900">
+            <div class="flex justify-between items-center gap-3"><h2 class="text-xl font-black text-slate-900 uppercase">Dive Analysis</h2><select id="diveHeightFilter" class="bg-blue-50 text-blue-600 text-[10px] font-black p-3 rounded-2xl outline-none" onchange="app.renderDiveStats()"><option value="1m">1m</option><option value="3m">3m</option><option value="Platform">Platform</option></select></div>
+            <div class="grid grid-cols-2 gap-4 text-slate-900"><div class="space-y-3 text-slate-900"><p class="text-[10px] font-black text-blue-500 uppercase tracking-widest text-center">Training</p><div id="trainDiveList" class="space-y-2 text-slate-900"></div></div><div class="space-y-3 text-slate-900"><p class="text-[10px] font-black text-rose-500 uppercase tracking-widest text-center">Competition</p><div id="compDiveList" class="space-y-2 text-slate-900"></div></div></div>
+        </section>
+
+        <section id="manage" class="tab-content space-y-6 text-slate-900">
+            <h2 class="text-2xl font-black text-center uppercase text-slate-900">Team</h2>
+            <div class="flex gap-3"><input type="text" id="newAthleteName" placeholder="Athlete name..." class="flex-1 p-4 card-pro font-bold outline-none text-sm text-slate-900"><button onclick="app.addAthlete()" class="header-pro text-white px-8 py-2 rounded-2xl font-black text-2xl active:scale-95 shadow-lg">+</button></div>
+            <ul id="athleteList" class="space-y-3 text-slate-900"></ul>
+        </section>
+    </main>
+
+    <nav id="mainNav" class="fixed bottom-0 left-0 right-0 h-20 nav-dock rounded-t-[32px] flex justify-around items-center shadow-2xl z-50">
+        <button onclick="app.showTab('draft')" class="nav-btn flex flex-col items-center gap-1 text-blue-400 transition-all"><span class="text-2xl">📋</span><span class="text-[8px] font-black uppercase">Draft</span></button>
+        <button onclick="app.showTab('stats')" class="nav-btn flex flex-col items-center gap-1 text-slate-400 transition-all"><span class="text-2xl">📈</span><span class="text-[8px] font-black uppercase">Global</span></button>
+        <button onclick="app.showTab('diveStats')" class="nav-btn flex flex-col items-center gap-1 text-slate-400 transition-all"><span class="text-2xl">📊</span><span class="text-[8px] font-black uppercase">Dives</span></button>
+        <button onclick="app.showTab('manage')" class="nav-btn flex flex-col items-center gap-1 text-slate-400 transition-all"><span class="text-2xl">👤</span><span class="text-[8px] font-black uppercase">Team</span></button>
+    </nav>
+
+    <script>
+        Chart.register(ChartDataLabels);
+        const app = {
+            activeField: null, chartDataSessions: { training: [], competition: [] },
+            data: { athletes: JSON.parse(localStorage.getItem('dl_ath_v13')) || ['nico'], sessions: JSON.parse(localStorage.getItem('dl_ses_v13')) || [] },
+
+            init() { 
+                if (this.data.sessions.length < 10) { this.generateInitialData(); }
+                this.initDatePicker(); this.updateAthleteUI(); this.updateCategoryContext(); this.showTab('draft'); 
+            },
+
+            generateInitialData() {
+                const initial = [];
+                const pool1m = [{n:"105B", dd:2.6}, {n:"403B", dd:2.4}, {n:"203B", dd:2.3}, {n:"303B", dd:2.4}, {n:"5132D", dd:2.2}, {n:"103B", dd:1.7}, {n:"401B", dd:1.5}, {n:"201B", dd:1.6}, {n:"301B", dd:1.7}, {n:"5231D", dd:2.1}];
+                const poolPlat = [{n:"107B", dd:3.0, h:"10m"}, {n:"407C", dd:3.2, h:"10m"}, {n:"207C", dd:3.3, h:"10m"}, {n:"307C", dd:3.4, h:"10m"}, {n:"626C", dd:3.3, h:"10m"}, {n:"5253B", dd:3.2, h:"10m"}, {n:"105B", dd:2.3, h:"5m"}, {n:"405C", dd:2.7, h:"7.5m"}, {n:"205C", dd:2.8, h:"5m"}];
+                const today = new Date();
+
+                const addSet = (count, size, pool, height, type, format, offset) => {
+                    for(let i=0; i<count; i++) {
+                        const dives = [];
+                        for(let j=0; j<size; j++) {
+                            const d = pool[j % pool.length];
+                            const note = (Math.floor(Math.random() * 15) + 15) / 2;
+                            dives.push({ id: Math.random(), num: d.n, pos: 'B', h: d.h || height, dd: d.dd, note: note * 3, score: (note * 3) * d.dd });
+                        }
+                        const dDate = new Date(); dDate.setDate(today.getDate() - (offset + i));
+                        initial.push({ id: Date.now() + Math.random(), athlete: 'nico', year: '2026', category: 'Elites', height: height==='1m'?'1m':'Platform', type, format, score: dives.reduce((a,b)=>a+b.score, 0), reqScore: dives.slice(0, height==='1m'?5:4).reduce((a,b)=>a+b.score, 0), reqActive: true, dives, date: dDate.toLocaleDateString('en-GB'), timestamp: dDate.getTime() });
+                    }
+                };
+
+                addSet(4, 10, pool1m, '1m', 'Training', 'List', 5);
+                addSet(4, 10, pool1m, '1m', 'Competition', 'List', 3);
+                addSet(4, 9, poolPlat, 'Platform', 'Training', 'List', 10);
+                addSet(4, 9, poolPlat, 'Platform', 'Competition', 'List', 8);
+                
+                for(let i=0; i<10; i++) {
+                    const d = pool1m[i%pool1m.length];
+                    initial.push({ id: Date.now() + Math.random(), athlete: 'nico', year: '2026', category: 'Elites', height: '1m', type: 'Training', format: 'Practice', score: 45, dives: [{ id: Math.random(), num: d.n, pos: 'B', h: '1m', dd: d.dd, note: 21, score: 21*d.dd }], date: today.toLocaleDateString('en-GB'), timestamp: today.getTime() });
+                }
+                for(let i=0; i<10; i++) {
+                    const d = poolPlat[i%poolPlat.length];
+                    initial.push({ id: Date.now() + Math.random(), athlete: 'nico', year: '2026', category: 'Elites', height: 'Platform', type: 'Training', format: 'Practice', score: 60, dives: [{ id: Math.random(), num: d.n, pos: 'B', h: d.h, dd: d.dd, note: 18, score: 18*d.dd }], date: today.toLocaleDateString('en-GB'), timestamp: today.getTime() });
+                }
+
+                this.data.sessions = initial; localStorage.setItem('dl_ses_v13', JSON.stringify(initial));
+            },
+
+            initDatePicker() {
+                const d = document.getElementById('globalDay'), m = document.getElementById('globalMonth'), y = document.getElementById('globalYear');
+                d.innerHTML = ''; m.innerHTML = ''; y.innerHTML = '';
+                for(let i=1; i<=31; i++) d.innerHTML += `<option value="${i}">${i}</option>`;
+                const ms = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+                ms.forEach((n, idx) => m.innerHTML += `<option value="${idx}">${n}</option>`);
+                for(let i=2024; i<=2100; i++) y.innerHTML += `<option value="${i}">${i}</option>`;
+                const now = new Date(); d.value = now.getDate(); m.value = now.getMonth(); y.value = now.getFullYear();
+            },
+
+            updateDevice() {
+                const dev = document.getElementById('draftDevice').value;
+                const hs = document.getElementById('draftHeight');
+                if(dev === 'Platform') {
+                    hs.innerHTML = '<option value="Platform">Mixed</option>'; hs.disabled = true; hs.classList.add('opacity-50');
+                } else {
+                    hs.innerHTML = '<option value="1m">1m</option><option value="3m">3m</option>'; hs.disabled = false; hs.classList.remove('opacity-50');
+                }
+                document.getElementById('reqLabel').innerText = dev === 'Springboard' ? 'Req (5)' : 'Req (4)';
+                this.generateDraftRows(); this.calcTotals();
+            },
+
+            generateDraftRows() {
+                const dev = document.getElementById('draftDevice').value;
+                const container = document.getElementById('draftRows'); container.innerHTML = '';
+                for (let i = 1; i <= 10; i++) {
+                    let hSel = dev === 'Platform' ? `<select id="h${i}" class="bg-blue-50 text-[8px] font-bold rounded p-1 outline-none text-slate-900"><option value="10m" selected>10m</option><option value="7.5m">7.5m</option><option value="5m">5m</option></select>` : '';
+                    container.innerHTML += `<tr><td class="p-2 flex items-center gap-1"><input type="text" readonly onclick="app.openKeyboard(this, 'num')" id="n${i}" class="w-8 bg-slate-100 rounded p-1 text-center font-extrabold outline-none text-slate-900">${hSel}</td>
+                        <td class="p-2 text-center"><input type="text" readonly onclick="app.openKeyboard(this, 'alpha')" id="p${i}" class="w-8 bg-slate-100 rounded p-1 text-center font-extrabold outline-none uppercase text-slate-900"></td>
+                        <td class="p-2 text-center"><input type="text" readonly onclick="app.openKeyboard(this, 'num')" id="dd${i}" class="w-8 bg-slate-50 rounded p-1 text-center font-black text-slate-900"></td>
+                        <td class="p-2 text-center"><input type="text" readonly onclick="app.openKeyboard(this, 'num')" id="note${i}" class="w-10 bg-blue-50 text-blue-600 rounded p-1 text-center font-black"></td>
+                        <td class="p-2 text-right font-black text-slate-900" id="res${i}">0.0</td></tr>`;
+                }
+            },
+
+            openKeyboard(el, type) { if(this.activeField) this.activeField.classList.remove('input-active'); this.activeField = el; el.classList.add('input-active'); document.getElementById('customKeyboard').style.display = 'block'; document.getElementById('mainNav').style.display = 'none'; document.getElementById('alphaKeys').style.display = type === 'alpha' ? 'grid' : 'none'; document.getElementById('numKeys').style.display = type === 'num' ? 'grid' : 'none'; },
+            closeKeyboard() { if(this.activeField) this.activeField.classList.remove('input-active'); document.getElementById('customKeyboard').style.display = 'none'; document.getElementById('mainNav').style.display = 'flex'; this.activeField = null; },
+            kbWrite(val) { if(this.activeField) { this.activeField.value += val; const id = this.activeField.id, idx = id.match(/\d+/)[0]; if(id.startsWith('dd') || id.startsWith('note')) app.calcRow(idx); } },
+            kbDel() { if(this.activeField) { this.activeField.value = this.activeField.value.slice(0, -1); const id = this.activeField.id, idx = id.match(/\d+/)[0]; if(id.startsWith('dd') || id.startsWith('note')) app.calcRow(idx); } },
+            kbNav(dir) {
+                if(!this.activeField) return;
+                const id = this.activeField.id, type = id.replace(/[0-9]/g, ''), idx = parseInt(id.match(/\d+/)[0]), types = ['n', 'p', 'dd', 'note'];
+                let nextT = types.indexOf(type), nextI = idx;
+                if(dir==='up' && idx>1) nextI--; if(dir==='down' && idx<10) nextI++;
+                if(dir==='left') { if(nextT===0) { if(nextI>1){nextI--; nextT=3;} } else nextT--; }
+                if(dir==='right') { if(nextT===3) { if(nextI<10){nextI++; nextT=0;} } else nextT++; }
+                const nextEl = document.getElementById(types[nextT] + nextI);
+                if(nextEl) app.openKeyboard(nextEl, types[nextT]==='p'?'alpha':'num');
+            },
+
+            calcRow(i) { const dd = parseFloat(document.getElementById(`dd${i}`).value) || 0, note = parseFloat(document.getElementById(`note${i}`).value) || 0; document.getElementById(`res${i}`).innerText = (dd * note).toFixed(2); this.calcTotals(); },
+            calcTotals() {
+                const dev = document.getElementById('draftDevice').value, isReq = document.getElementById('reqToggle').checked;
+                const limit = dev === 'Springboard' ? 5 : 4;
+                let total = 0, req = 0;
+                document.querySelectorAll('[id^="res"]').forEach((el, idx) => { const v = parseFloat(el.innerText); total += v; if(isReq && idx < limit) req += v; });
+                document.getElementById('totalScore').innerText = total.toFixed(2); document.getElementById('totalReq').innerText = isReq ? req.toFixed(2) : "0.0";
+            },
+
+            saveSession() {
+                const score = parseFloat(document.getElementById('totalScore').innerText); if(score === 0) return;
+                const dev = document.getElementById('draftDevice').value;
+                const dateObj = new Date(document.getElementById('globalYear').value, document.getElementById('globalMonth').value, document.getElementById('globalDay').value);
+                const dives = [];
+                for(let i=1; i<=10; i++){
+                    const num = document.getElementById(`n${i}`).value;
+                    const h = dev === 'Platform' ? document.getElementById(`h${i}`).value : document.getElementById('draftHeight').value;
+                    if(num) dives.push({ id: Math.random(), num, pos: document.getElementById(`p${i}`).value, h, dd: parseFloat(document.getElementById(`dd${i}`).value) || 0, note: parseFloat(document.getElementById(`note${i}`).value) || 0, score: parseFloat(document.getElementById(`res${i}`).innerText) || 0 });
+                }
+                const hDraft = dev==='Platform'?'Platform':document.getElementById('draftHeight').value;
+                this.data.sessions.push({ id: Date.now(), athlete: document.getElementById('globalAthlete').value, year: document.getElementById('globalYear').value, category: document.getElementById('globalCategory').value, height: hDraft, type: document.getElementById('draftType').value, format: document.getElementById('draftFormat').value, score, reqScore: parseFloat(document.getElementById('totalReq').innerText) || 0, reqActive: document.getElementById('reqToggle').checked, dives, date: dateObj.toLocaleDateString('en-GB'), timestamp: dateObj.getTime() });
+                localStorage.setItem('dl_ses_v13', JSON.stringify(this.data.sessions)); alert("✓ Saved!"); this.generateDraftRows(); this.calcTotals(); this.updateGlobalContext();
+            },
+
+            updateGlobalContext() {
+                const ath = document.getElementById('globalAthlete').value, yr = document.getElementById('globalYear').value, cat = document.getElementById('globalCategory').value, hF = document.getElementById('statsHeightFilter').value;
+                const filtered = this.data.sessions.filter(s => s.athlete === ath && s.year === yr && s.category === cat && (hF === 'Platform' ? (s.height === 'Platform') : s.height === hF) && s.format === 'List').sort((a,b) => a.timestamp - b.timestamp);
+                const labels = [], tS = [], cS = []; this.chartDataSessions = { training: [], competition: [] };
+                filtered.forEach(s => { labels.push(""); if(s.type === 'Training') { tS.push(s.score); cS.push(null); this.chartDataSessions.training.push(s); this.chartDataSessions.competition.push(null); } else { cS.push(s.score); tS.push(null); this.chartDataSessions.competition.push(s); this.chartDataSessions.training.push(null); } });
+                const updExt = (type, bS, bR, bBtn, wS, wR, wBtn) => {
+                    const p = filtered.filter(s => s.type === type); if(!p.length) { [bS, bR, wS, wR].forEach(id=>document.getElementById(id).innerText="0.0"); return; }
+                    const best = p.reduce((a, b) => (a.score > b.score) ? a : b), worst = p.reduce((a, b) => (a.score < b.score) ? a : b);
+                    document.getElementById(bS).innerText = best.score.toFixed(1); document.getElementById(bR).innerText = best.reqScore.toFixed(1); document.getElementById(bBtn).onclick = () => app.openModal(best.id);
+                    document.getElementById(wS).innerText = worst.score.toFixed(1); document.getElementById(wR).innerText = worst.reqScore.toFixed(1); document.getElementById(wBtn).onclick = () => app.openModal(worst.id);
+                };
+                updExt('Training', 'bestTrain', 'bestTrainReq', 'bestTrainBtn', 'worstTrain', 'worstTrainReq', 'worstTrainBtn');
+                updExt('Competition', 'bestComp', 'bestCompReq', 'bestCompBtn', 'worstComp', 'worstCompReq', 'worstCompBtn');
+                this.drawChart(labels, tS, cS); this.renderHistory(filtered); this.renderDiveStats();
+            },
+
+            renderHistory(list) {
+                const tH = document.getElementById('historyTrain'), cH = document.getElementById('historyComp'); tH.innerHTML = ''; cH.innerHTML = '';
+                [...list].sort((a,b)=>b.timestamp - a.timestamp).forEach(s => {
+                    const c = s.type === 'Training' ? 'bg-blue-50 border-blue-100 text-blue-700' : 'bg-rose-50 border-rose-100 text-rose-700';
+                    const h = `<div onclick="app.openModal(${s.id})" class="card-pro p-2 border ${c} text-center mb-2 cursor-pointer text-slate-900"><p class="text-[7px] font-black opacity-60 mb-0.5">${s.date}</p><p class="font-black text-xs">${s.score.toFixed(1)}</p></div>`;
+                    if(s.type === 'Training') tH.innerHTML += h; else cH.innerHTML += h;
+                });
+            },
+
+            renderDiveStats() {
+                const ath = document.getElementById('globalAthlete').value, cat = document.getElementById('globalCategory').value, hF = document.getElementById('diveHeightFilter').value;
+                const tD = {}, cD = {};
+                this.data.sessions.filter(s => s.athlete === ath && s.category === cat).forEach(s => {
+                    s.dives.forEach(d => {
+                        if (hF !== 'Platform' && d.h !== hF) return; if (hF === 'Platform' && !['5m','7.5m','10m'].includes(d.h)) return;
+                        const pool = s.type === 'Training' ? tD : cD; const key = `${d.num}${d.pos}${hF==='Platform'?d.h:''}`.toUpperCase();
+                        if(!pool[key]) pool[key] = { num: d.num, pos: d.pos, h: d.h, notes: [], scores: [], entries: [] };
+                        pool[key].notes.push(d.note); pool[key].scores.push(d.score); pool[key].entries.push({ sid: s.id, did: d.id, date: s.date, note: d.note, score: d.score, format: s.format, timestamp: s.timestamp });
+                    });
+                });
+                const build = (data, cid, color) => {
+                    const cont = document.getElementById(cid); cont.innerHTML = '';
+                    Object.keys(data).sort().forEach(k => {
+                        const d = data[k], avgN = (d.notes.reduce((a,b)=>a+b,0)/d.notes.length / 3).toFixed(1), avgS = (d.scores.reduce((a,b)=>a+b,0)/d.scores.length).toFixed(1), best = Math.max(...d.scores).toFixed(1), worst = Math.min(...d.scores).toFixed(1);
+                        cont.innerHTML += `<div onclick="app.openDiveDetails('${k}', '${cid}')" class="card-pro p-3 border-l-4 mb-2 cursor-pointer" style="border-color:${color}"><div class="flex justify-between mb-1 text-slate-900 font-black text-xs"><span>${d.num}${d.pos} ${hF==='Platform'?`(${d.h})`:''}</span><span>x${d.entries.length}</span></div><div class="flex justify-between text-[9px] font-bold text-slate-500"><span>Avg Note / 10</span><span style="color:${color}">${avgN}</span></div><div class="flex justify-between text-[9px] font-bold text-slate-500"><span>Avg Score</span><span style="color:${color}">${avgS}</span></div><div class="flex justify-between text-[8px] font-black uppercase mt-1 opacity-50 text-slate-900"><span>Best: ${best}</span><span>Worst: ${worst}</span></div></div>`;
+                    });
+                };
+                build(tD, 'trainDiveList', '#3b82f6'); build(cD, 'compDiveList', '#e11d48');
+                this.currentDiveMap = { trainDiveList: tD, compDiveList: cD };
+            },
+
+            openDiveDetails(key, cid) {
+                const data = this.currentDiveMap[cid][key], sorted = [...data.entries].sort((a,b) => b.timestamp - a.timestamp);
+                const best = sorted.reduce((a, b) => (a.score > b.score) ? a : b), worst = sorted.reduce((a, b) => (a.score < b.score) ? a : b);
+                document.getElementById('modalSub').innerText = `History: ${data.num}${data.pos}`;
+                
+                const bFormat = best.format === 'Practice' ? '(PRAC)' : '(LIST)';
+                const wFormat = worst.format === 'Practice' ? '(PRAC)' : '(LIST)';
+
+                let html = `<div class="space-y-4 text-slate-900"><div class="grid grid-cols-2 gap-2">
+                    <div onclick="${best.format==='Practice'?`app.deleteDive('${best.sid}','${best.did}','best')`:''}" class="p-3 bg-green-50 rounded-xl border border-green-100 text-center cursor-pointer text-slate-900"><p class="text-[8px] font-black text-green-600 uppercase">Best ${bFormat}</p><p class="text-xs font-black">${best.score.toFixed(1)}</p></div>
+                    <div onclick="${worst.format==='Practice'?`app.deleteDive('${worst.sid}','${worst.did}','worst')`:''}" class="p-3 bg-rose-50 rounded-xl border border-rose-100 text-center cursor-pointer text-slate-900"><p class="text-[8px] font-black text-rose-600 uppercase">Worst ${wFormat}</p><p class="text-xs font-black">${worst.score.toFixed(1)}</p></div>
+                </div><div class="space-y-2">`;
+                
+                sorted.forEach(e => { html += `<div class="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-100"><div class="text-left"><p class="text-[8px] font-black text-slate-400">${e.date} (${e.format.toUpperCase()})</p><p class="text-xs font-black text-slate-900">Note / 10: ${(e.note/3).toFixed(1)}</p></div><div class="flex items-center gap-3 text-slate-900"><p class="text-xs font-black text-blue-600">${e.score.toFixed(1)}</p>${e.format==='Practice'?`<button onclick="app.deleteDive('${e.sid}','${e.did}')" class="text-rose-500 font-bold px-2 text-lg">×</button>`:''}</div></div>`; });
+                document.getElementById('modalContent').innerHTML = html + `</div></div>`;
+                document.getElementById('modalDeleteBtn').style.display = 'none'; document.getElementById('sessionModal').classList.add('active');
+            },
+
+            deleteDive(sid, did, label) {
+                const msg = label ? `Do you want to delete the ${label} dive?` : "Delete this Practice dive?";
+                if(!confirm(msg)) return;
+                const s = this.data.sessions.find(x => x.id == sid);
+                if(s) { s.dives = s.dives.filter(d => d.id != did); if(!s.dives.length) this.data.sessions = this.data.sessions.filter(x => x.id != sid); else s.score = s.dives.reduce((a,b)=>a+b.score, 0); localStorage.setItem('dl_ses_v13', JSON.stringify(this.data.sessions)); app.closeModal(); app.updateGlobalContext(); }
+            },
+
+            openModal(id) {
+                const s = this.data.sessions.find(x => x.id == id); if(!s) return;
+                document.getElementById('modalSub').innerText = `${s.date} - ${s.type}`;
+                const limit = s.height === 'Platform' ? 4 : 5;
+                let rS = 0; let h = `<table class="w-full text-[10px] mb-4 text-slate-700"><thead><tr class="text-slate-400 uppercase text-[8px]"><th>Dive</th><th>Note (30)</th><th class="text-right">Score</th></tr></thead><tbody class="divide-y divide-slate-50">`;
+                s.dives.forEach((d, idx) => { const isR = s.reqActive && idx < limit; if(isR) rS += d.score; h += `<tr class="${isR ? 'bg-blue-50/50' : ''}"><td class="py-2 font-black text-slate-900">${d.num}${d.pos} (${d.h})</td><td class="font-bold text-blue-600 text-slate-900">${d.note.toFixed(1)}</td><td class="text-right font-black text-slate-900">${d.score.toFixed(1)}</td></tr>`; });
+                document.getElementById('modalContent').innerHTML = h + `</tbody></table>${s.reqActive?`<div class="p-3 bg-blue-100 rounded-xl flex justify-between items-center mb-2"><span class="text-[10px] uppercase font-black text-blue-600">Required Total (${limit})</span><span class="font-black text-blue-600 text-lg">${rS.toFixed(1)}</span></div>`:''}<div class="p-4 bg-slate-900 rounded-2xl flex justify-between items-center text-white"><span class="text-[10px] uppercase font-black opacity-60">Total Score</span><span class="font-black text-2xl">${s.score.toFixed(1)}</span></div>`;
+                document.getElementById('modalDeleteBtn').style.display = 'block'; document.getElementById('modalDeleteBtn').onclick = () => app.deleteSession(id); document.getElementById('sessionModal').classList.add('active');
+            },
+
+            deleteSession(id) { if(confirm("Delete session and all the dives ?")) { this.data.sessions = this.data.sessions.filter(s => s.id != id); localStorage.setItem('dl_ses_v13', JSON.stringify(this.data.sessions)); this.closeModal(); this.updateGlobalContext(); } },
+            closeModal() { document.getElementById('sessionModal').classList.remove('active'); },
+            drawChart(labels, tS, cS) {
+                const ctx = document.getElementById('evolutionChart').getContext('2d'); if(window.myChart) window.myChart.destroy();
+                window.myChart = new Chart(ctx, { type: 'line', data: { labels, datasets: [ { label: 'T', data: tS, borderColor: '#3b82f6', spanGaps: true, pointRadius: 4, hitRadius: 15 }, { label: 'C', data: cS, borderColor: '#e11d48', spanGaps: true, pointRadius: 4, hitRadius: 15 } ] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, datalabels: { align: 'top', offset: 8, font: { size: 7, weight: '800' }, color: (c) => c.dataset.borderColor, formatter: (v) => v ? v.toFixed(1) : '' } }, scales: { x: { display: false }, y: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { font: { size: 8 } } } }, layout: { padding: { top: 30 } } } });
+            },
+            showTab(t) { document.querySelectorAll('.tab-content').forEach(x => x.classList.remove('active')); document.getElementById(t).classList.add('active'); document.querySelectorAll('.nav-btn').forEach(b => { b.classList.replace('text-blue-400', 'text-slate-400'); if (b.getAttribute('onclick').includes(t)) b.classList.replace('text-slate-400', 'text-blue-400'); }); if(t==='stats' || t==='diveStats') this.updateGlobalContext(); },
+            updateAthleteUI() { const s = document.getElementById('globalAthlete'), l = document.getElementById('athleteList'); s.innerHTML = ''; l.innerHTML = ''; this.data.athletes.forEach(a => { s.innerHTML += `<option value="${a}">${a}</option>`; l.innerHTML += `<li class="card-pro p-4 flex justify-between font-bold text-slate-900 uppercase text-slate-900"><span>${a}</span><button onclick="app.removeAthlete('${a}')" class="text-rose-500 font-black">X</button></li>`; }); },
+            handleChartClick(evt) { if(!window.myChart) return; const points = window.myChart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true); if (points.length) { const p = points[0]; const s = p.datasetIndex === 0 ? this.chartDataSessions.training[p.index] : this.chartDataSessions.competition[p.index]; if(s) this.openModal(s.id); } },
+            updateCategoryContext() { this.generateDraftRows(); this.calcTotals(); this.updateGlobalContext(); },
+            addAthlete() { const n = document.getElementById('newAthleteName').value.trim(); if(!n) return; this.data.athletes.push(n); localStorage.setItem('dl_ath_v13', JSON.stringify(this.data.athletes)); document.getElementById('newAthleteName').value = ''; this.updateAthleteUI(); },
+            removeAthlete(n) { if(confirm(`Delete ${n}?`)) { this.data.sessions = this.data.sessions.filter(s => s.athlete !== n); this.data.athletes = this.data.athletes.filter(a => a !== n); localStorage.setItem('dl_ath_v13', JSON.stringify(this.data.athletes)); localStorage.setItem('dl_ses_v13', JSON.stringify(this.data.sessions)); location.reload(); } }
+        };
+        app.init();
+    </script>
+</body>
+</html>
